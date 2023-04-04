@@ -12,6 +12,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"kubot/internal/utils"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -136,60 +137,13 @@ func (it *K8sExecutor) createArchiveFromWorkspace(path *string) (string, error) 
 		return "", fmt.Errorf("failed to create archive from workspace: %v", err)
 	}
 
-	return tempFile.Name(), nil
-}
+	filePath, err := utils.GetAbsolutePath(tempFile.Name())
+	if err != nil {
+		return "", nil
+	}
 
-//func (it *K8sExecutor) createArchiveFromWorkspace(path *string) (string, error) {
-//	// create a new zip file
-//	zipFilePath := filepath.Join(os.TempDir(), "workspace.zip")
-//	zipFile, err := os.Create(zipFilePath)
-//	if err != nil {
-//		return "", err
-//	}
-//	defer zipFile.Close()
-//
-//	// create a new zip writer
-//	zipWriter := zip.NewWriter(zipFile)
-//	defer zipWriter.Close()
-//
-//	// walk the directory tree and add all files to the zip file
-//	err = filepath.Walk(*path, func(filePath string, fileInfo os.FileInfo, err error) error {
-//		if err != nil {
-//			return err
-//		}
-//
-//		// skip directories and the zip file itself
-//		if fileInfo.IsDir() || filePath == zipFilePath {
-//			return nil
-//		}
-//
-//		// add the file to the zip archive
-//		fileRelPath, err := filepath.Rel(*path, filePath)
-//		if err != nil {
-//			return err
-//		}
-//		zipFile, err := zipWriter.Create(fileRelPath)
-//		if err != nil {
-//			return err
-//		}
-//		file, err := os.Open(filePath)
-//		if err != nil {
-//			return err
-//		}
-//		defer file.Close()
-//		_, err = io.Copy(zipFile, file)
-//		if err != nil {
-//			return err
-//		}
-//
-//		return nil
-//	})
-//	if err != nil {
-//		return "", err
-//	}
-//
-//	return zipFilePath, nil
-//}
+	return filePath, nil
+}
 
 func (it *K8sExecutor) copyWorkspaceToPod(pod *corev1.Pod, srcDir string, destDir string) error {
 	filePath, err := it.createArchiveFromWorkspace(&srcDir)

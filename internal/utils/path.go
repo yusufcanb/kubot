@@ -12,7 +12,7 @@ func GetAbsolutePath(filePath string) (string, error) {
 		if len(filePath) < 3 {
 			return "", errors.New("invalid path")
 		}
-		filePath = "\\" + strings.ToLower(filePath[0:1]) + filePath[2:]
+		filePath = strings.Replace(filePath, "C:", "", -1)
 	}
 	return filePath, nil
 }
