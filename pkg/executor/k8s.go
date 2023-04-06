@@ -3,9 +3,11 @@ package executor
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -15,6 +17,7 @@ import (
 	"kubot/internal/utils"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 )
 
@@ -24,6 +27,7 @@ type K8sExecutor struct {
 	client *kubernetes.Clientset
 	config *rest.Config
 	pod    *corev1.Pod
+	volume *corev1.Volume
 
 	Namespace  string
 	JobName    string
@@ -31,8 +35,51 @@ type K8sExecutor struct {
 	JobImage   string
 }
 
+// createVolume
+func (it *K8sExecutor) createVolume() error {
+	size := "1Gi"
+	accessModes := []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
+	storageClassName := fmt.Sprintf("%s-%s", it.JobName, "storage-class")
+
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: it.JobName + "-data",
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			StorageClassName: &storageClassName,
+			AccessModes:      accessModes,
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse(size),
+				},
+			},
+		},
+	}
+
+	_, err := it.client.CoreV1().PersistentVolumeClaims(it.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
+	if err != nil {
+		return err
+	}
+
+	it.volume = &corev1.Volume{
+		Name: it.JobName + "-data",
+		VolumeSource: corev1.VolumeSource{
+			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+				ClaimName: it.JobName + "-data",
+			},
+		},
+	}
+
+	return nil
+}
+
 // createPod creates new Pod workload using kubernetes client
 func (it *K8sExecutor) createPod() error {
+	err := it.createVolume()
+	if err != nil {
+		return errors.New(fmt.Sprintf("volume error: %s", err))
+	}
+
 	// Create a new PodSpec with the job container
 	podSpec := corev1.PodSpec{
 		Containers: []corev1.Container{
@@ -40,9 +87,23 @@ func (it *K8sExecutor) createPod() error {
 				Name:    "job-container",
 				Image:   it.JobImage,
 				Command: []string{"sleep", "infinity"},
+				Env: []corev1.EnvVar{
+					{Name: "BROWSER", Value: "chrome"},
+				},
+				VolumeMounts: []corev1.VolumeMount{
+					{
+						Name:      it.volume.Name,
+						MountPath: "/data",
+					},
+				},
 			},
 		},
 		RestartPolicy: corev1.RestartPolicyNever,
+		Volumes: []corev1.Volume{
+			{
+				Name: it.volume.Name,
+			},
+		},
 	}
 
 	// Create a new Pod object with the PodSpec
@@ -109,6 +170,8 @@ func (it *K8sExecutor) copy(pod *corev1.Pod, srcPath string, destinationPath str
 
 // exec executes given command inside the pod
 func (it *K8sExecutor) exec(pod *corev1.Pod, cmd []string) error {
+	fmt.Printf("%s >>> %s\n\n", it.pod.Name, cmd)
+
 	buf := &bytes.Buffer{}
 	request := it.client.CoreV1().RESTClient().
 		Post().
@@ -123,6 +186,7 @@ func (it *K8sExecutor) exec(pod *corev1.Pod, cmd []string) error {
 			Stderr:  true,
 			TTY:     true,
 		}, scheme.ParameterCodec)
+
 	spdyExec, err := remotecommand.NewSPDYExecutor(it.config, "POST", request.URL())
 	err = spdyExec.StreamWithContext(context.Background(), remotecommand.StreamOptions{
 		Stdin:  nil,
@@ -147,6 +211,21 @@ func (it *K8sExecutor) deletePod() error {
 		return err
 	}
 
+	return nil
+}
+
+// deleteVolume
+func (it *K8sExecutor) deleteVolume() error {
+	if it.volume == nil {
+		return nil
+	}
+
+	err := it.client.CoreV1().PersistentVolumeClaims(it.Namespace).Delete(context.Background(), it.JobName+"-data", metav1.DeleteOptions{})
+	if err != nil {
+		return err
+	}
+
+	it.volume = nil
 	return nil
 }
 
@@ -193,16 +272,27 @@ func (it *K8sExecutor) Execute(workspacePath string) error {
 		return err
 	}
 
-	err = it.copy(it.pod, archivePath, "/opt/robotframework/reports")
+	err = it.copy(it.pod, archivePath, "/data")
 	if err != nil {
 		return err
 	}
 
-	cmd := []string{"ls", "/", "-all"}
-	log.Infof("executing command %s in pod %s", cmd, it.pod.Name)
-	err = it.exec(it.pod, cmd)
-	if err != nil {
-		log.Fatal(err)
+	_, archiveFile := filepath.Split(archivePath)
+	extractDir := fmt.Sprintf("/data/%s", it.pod.Name)
+
+	cmds2Execute := []string{
+		fmt.Sprintf("mkdir -p %s", extractDir),
+		fmt.Sprintf("tar xzf /data/%s -C %s", archiveFile, extractDir),
+		fmt.Sprintf("ls -all %s", extractDir),
+		fmt.Sprintf("robot --outputdir %s %s/ >> %s/stdout.txt", extractDir, extractDir, extractDir),
+		fmt.Sprintf("cat %s/stdout.txt", extractDir),
+	}
+
+	for _, cmd := range cmds2Execute {
+		err = it.exec(it.pod, []string{"/bin/sh", "-c", cmd})
+		if err != nil {
+			log.Warn(err)
+		}
 	}
 
 	defer func(it *K8sExecutor) {
@@ -211,6 +301,13 @@ func (it *K8sExecutor) Execute(workspacePath string) error {
 		if err != nil {
 			panic(err)
 		}
+
+		log.Infof("removing volume: %s", it.volume.Name)
+		err = it.deleteVolume()
+		if err != nil {
+			panic(err)
+		}
+
 	}(it)
 
 	return nil

@@ -13,11 +13,12 @@ Parallel robot execution on Kubernetes workloads
 
 ## Introduction
 
-This project provides a method for parallelizing the executions of robot scripts over Kubernetes workloads. 
+This project provides a method for parallelizing the executions of robot scripts over Kubernetes workloads.
 
 ## Getting Started
 
-To get started with this project, you will need to have access to a Kubernetes cluster as well as the following prerequisites:
+To get started with this project, you will need to have access to a Kubernetes cluster as well as the following
+prerequisites:
 
 ### Prerequisites
 
@@ -32,7 +33,11 @@ TODO implement here
 ## Usage
 
 ```
-TODO implement here
+kubot --workspace . \
+      --image docker.io/kubot:basic \
+      --namespace [your-namespace] \
+      --selector [robot-selector]
+      --output [output-directory]
 ```
 
 ## Contributing
