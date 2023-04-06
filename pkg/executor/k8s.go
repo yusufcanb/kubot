@@ -1,23 +1,20 @@
 package executor
 
 import (
-	"archive/tar"
-	"compress/gzip"
+	"bytes"
 	"context"
-	"errors"
 	"fmt"
-	"io"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/remotecommand"
 	"kubot/internal/utils"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"runtime"
-	"strings"
 	"time"
 )
 
@@ -34,6 +31,7 @@ type K8sExecutor struct {
 	JobImage   string
 }
 
+// createPod creates new Pod workload using kubernetes client
 func (it *K8sExecutor) createPod() error {
 	// Create a new PodSpec with the job container
 	podSpec := corev1.PodSpec{
@@ -67,9 +65,38 @@ func (it *K8sExecutor) createPod() error {
 	return nil
 }
 
-func (it *K8sExecutor) copyTarFileToPod(pod *corev1.Pod, tarFilePath string, destinationPath string) error {
+// waitUntilPodHasStarted to ensure the executor's pod in Running state
+func (it *K8sExecutor) waitUntilPodHasStarted(pod *corev1.Pod) error {
+	// define timeout and polling interval
+	timeoutSeconds := 300
+	pollIntervalSeconds := 5
+
+	// create a context with timeout and cancel functions
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSeconds)*time.Second)
+	defer cancel()
+
+	// poll the pod until it is in the `Running` state
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timed out waiting for pod %s/%s to start", pod.Namespace, pod.Name)
+		default:
+			pod, err := it.client.CoreV1().Pods(pod.Namespace).Get(context.Background(), pod.Name, metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("error getting pod %s/%s: %v", pod.Namespace, pod.Name, err)
+			}
+			if pod.Status.Phase == corev1.PodRunning {
+				return nil
+			}
+			time.Sleep(time.Duration(pollIntervalSeconds) * time.Second)
+		}
+	}
+}
+
+// copy given file into the pod
+func (it *K8sExecutor) copy(pod *corev1.Pod, srcPath string, destinationPath string) error {
 	// Construct the kubectl cp command
-	cmd := exec.Command("kubectl", "cp", tarFilePath, fmt.Sprintf("%s:%s", pod.Name, destinationPath), "-n", pod.Namespace)
+	cmd := exec.Command("kubectl", "cp", srcPath, fmt.Sprintf("%s:%s", pod.Name, destinationPath), "-n", pod.Namespace)
 
 	// Run the command and capture the output and error streams
 	output, err := cmd.CombinedOutput()
@@ -80,93 +107,39 @@ func (it *K8sExecutor) copyTarFileToPod(pod *corev1.Pod, tarFilePath string, des
 	return nil
 }
 
-func (it *K8sExecutor) createArchiveFromWorkspace(path *string) (string, error) {
-	// Create a temporary file to hold the archive
-	tempFile, err := os.CreateTemp("", "kubot-*.tar.gz")
-	if err != nil {
-		return "", fmt.Errorf("failed to create temporary file: %v", err)
-	}
-	//defer os.Remove(tempFile.Name()) // Remove the temp file when we're done
-
-	// Create a gzip writer for the temporary file
-	gzipWriter := gzip.NewWriter(tempFile)
-	defer gzipWriter.Close()
-
-	// Create a tar writer for the gzip writer
-	tarWriter := tar.NewWriter(gzipWriter)
-	defer tarWriter.Close()
-
-	// Walk the directory tree starting at the given path and add each file to the tar archive
-	err = filepath.Walk(*path, func(filePath string, fileInfo os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// Get the header for the current file
-		header, err := tar.FileInfoHeader(fileInfo, fileInfo.Name())
-		if err != nil {
-			return err
-		}
-
-		// Update the header to use the relative path within the archive
-		relPath, err := filepath.Rel(filepath.Dir(*path), filePath)
-		if err != nil {
-			return err
-		}
-		header.Name = filepath.ToSlash(relPath)
-
-		// Write the header and file contents to the tar archive
-		if err = tarWriter.WriteHeader(header); err != nil {
-			return err
-		}
-		if fileInfo.Mode().IsRegular() {
-			file, err := os.Open(filePath)
-			if err != nil {
-				return err
-			}
-			defer file.Close()
-			if _, err := io.Copy(tarWriter, file); err != nil {
-				return err
-			}
-		}
-
-		return nil
+// exec executes given command inside the pod
+func (it *K8sExecutor) exec(pod *corev1.Pod, cmd []string) error {
+	buf := &bytes.Buffer{}
+	request := it.client.CoreV1().RESTClient().
+		Post().
+		Namespace(pod.Namespace).
+		Resource("pods").
+		Name(pod.Name).
+		SubResource("exec").
+		VersionedParams(&corev1.PodExecOptions{
+			Command: cmd,
+			Stdin:   false,
+			Stdout:  true,
+			Stderr:  true,
+			TTY:     true,
+		}, scheme.ParameterCodec)
+	spdyExec, err := remotecommand.NewSPDYExecutor(it.config, "POST", request.URL())
+	err = spdyExec.StreamWithContext(context.Background(), remotecommand.StreamOptions{
+		Stdin:  nil,
+		Stdout: buf,
+		Stderr: buf,
+		Tty:    true,
 	})
-
 	if err != nil {
-		return "", fmt.Errorf("failed to create archive from workspace: %v", err)
+		return fmt.Errorf("%w Failed executing command %s on %v/%v", err, cmd, pod.Namespace, pod.Name)
 	}
 
-	filePath, err := utils.GetAbsolutePath(tempFile.Name())
-	if err != nil {
-		return "", nil
-	}
-
-	return filePath, nil
-}
-
-func (it *K8sExecutor) copyWorkspaceToPod(pod *corev1.Pod, srcDir string, destDir string) error {
-	filePath, err := it.createArchiveFromWorkspace(&srcDir)
-	if err != nil {
-		return err
-	}
-
-	// replace Windows drive letter prefix with a backslash
-	if runtime.GOOS == "windows" && (strings.HasPrefix(filePath, "C:") || strings.HasPrefix(filePath, "D:")) {
-		if len(filePath) < 3 {
-			return errors.New("invalid path")
-		}
-		filePath = "\\" + strings.ToLower(filePath[0:1]) + filePath[2:]
-	}
-
-	err = it.copyTarFileToPod(pod, filePath, destDir)
-	if err != nil {
-		return err
-	}
+	fmt.Println(buf.String())
 
 	return nil
 }
 
+// deletePod deletes the executor's pod
 func (it *K8sExecutor) deletePod() error {
 	// Delete the Pod with the specified name in the specified namespace
 	err := it.client.CoreV1().Pods(it.Namespace).Delete(context.Background(), it.pod.Name, metav1.DeleteOptions{})
@@ -177,7 +150,8 @@ func (it *K8sExecutor) deletePod() error {
 	return nil
 }
 
-func (it *K8sExecutor) Configure() {
+// Configure the executor
+func (it *K8sExecutor) Configure(any) error {
 	kubeConfigPath := ""
 	if home, _ := os.UserHomeDir(); home != "" {
 		kubeConfigPath = fmt.Sprintf("%s/.kube/config", home)
@@ -185,38 +159,54 @@ func (it *K8sExecutor) Configure() {
 
 	config, err := clientcmd.BuildConfigFromFlags("", kubeConfigPath)
 	if err != nil {
-		panic(err.Error())
+		return err
 	}
 
 	it.config = config
 
-	// create the clientset
+	// create the client
 	client, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		panic(err.Error())
+		return err
 	}
 
 	it.client = client
+
+	return nil
 }
 
-func (it *K8sExecutor) Execute() error {
-	it.Configure()
-
+// Execute the executor
+func (it *K8sExecutor) Execute(workspacePath string) error {
 	err := it.createPod()
 	if err != nil {
 		return err
 	}
 
-	time.Sleep(5 * time.Second)
-
-	err = it.copyWorkspaceToPod(it.pod, ".", "/opt/robotframework/reports")
+	err = it.waitUntilPodHasStarted(it.pod)
 	if err != nil {
 		return err
 	}
 
-	time.Sleep(5 * time.Second)
+	log.Infof("copying workspace into pod %s", it.pod.Name)
+	archivePath, err := utils.ArchiveWorkspace(&workspacePath)
+	if err != nil {
+		return err
+	}
+
+	err = it.copy(it.pod, archivePath, "/opt/robotframework/reports")
+	if err != nil {
+		return err
+	}
+
+	cmd := []string{"ls", "/", "-all"}
+	log.Infof("executing command %s in pod %s", cmd, it.pod.Name)
+	err = it.exec(it.pod, cmd)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	defer func(it *K8sExecutor) {
+		log.Infof("removing pod %s", it.pod.Name)
 		err := it.deletePod()
 		if err != nil {
 			panic(err)
