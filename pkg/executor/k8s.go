@@ -18,6 +18,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 )
 
@@ -29,10 +31,13 @@ type K8sExecutor struct {
 	pod    *corev1.Pod
 	volume *corev1.Volume
 
-	Namespace  string
+	workspacePath string
+	image         string
+	namespace     string
+	selector      string
+
 	JobName    string
 	JobCommand string
-	JobImage   string
 }
 
 // createVolume
@@ -56,7 +61,7 @@ func (it *K8sExecutor) createVolume() error {
 		},
 	}
 
-	_, err := it.client.CoreV1().PersistentVolumeClaims(it.Namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
+	_, err := it.client.CoreV1().PersistentVolumeClaims(it.namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
 	if err != nil {
 		return err
 	}
@@ -73,6 +78,31 @@ func (it *K8sExecutor) createVolume() error {
 	return nil
 }
 
+// collectEnvironmentVariablesFromOs
+func (it *K8sExecutor) collectEnvironmentVariablesFromOs() []corev1.EnvVar {
+	var envVars []corev1.EnvVar
+
+	envKeyRegex := regexp.MustCompile(`^[-._a-zA-Z][-._a-zA-Z0-9]*$`)
+
+	for _, env := range os.Environ() {
+		keyValue := strings.SplitN(env, "=", 2)
+		if len(keyValue) == 2 {
+			key := keyValue[0]
+			value := keyValue[1]
+
+			if envKeyRegex.MatchString(key) && envKeyRegex.MatchString(value) {
+				envVar := corev1.EnvVar{
+					Name:  key,
+					Value: value,
+				}
+				envVars = append(envVars, envVar)
+			}
+		}
+	}
+
+	return envVars
+}
+
 // createPod creates new Pod workload using kubernetes client
 func (it *K8sExecutor) createPod() error {
 	err := it.createVolume()
@@ -85,11 +115,9 @@ func (it *K8sExecutor) createPod() error {
 		Containers: []corev1.Container{
 			{
 				Name:    "job-container",
-				Image:   it.JobImage,
+				Image:   it.image,
 				Command: []string{"sleep", "infinity"},
-				Env: []corev1.EnvVar{
-					{Name: "BROWSER", Value: "chrome"},
-				},
+				Env:     it.collectEnvironmentVariablesFromOs(),
 				VolumeMounts: []corev1.VolumeMount{
 					{
 						Name:      it.volume.Name,
@@ -110,13 +138,13 @@ func (it *K8sExecutor) createPod() error {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: it.JobName + "-",
-			Namespace:    it.Namespace,
+			Namespace:    it.namespace,
 		},
 		Spec: podSpec,
 	}
 
 	// Create the Pod in the cluster
-	podInterface, err := it.client.CoreV1().Pods(it.Namespace).Create(context.Background(), pod, metav1.CreateOptions{})
+	podInterface, err := it.client.CoreV1().Pods(it.namespace).Create(context.Background(), pod, metav1.CreateOptions{})
 	if err != nil {
 		return err
 	}
@@ -206,7 +234,7 @@ func (it *K8sExecutor) exec(pod *corev1.Pod, cmd []string) error {
 // deletePod deletes the executor's pod
 func (it *K8sExecutor) deletePod() error {
 	// Delete the Pod with the specified name in the specified namespace
-	err := it.client.CoreV1().Pods(it.Namespace).Delete(context.Background(), it.pod.Name, metav1.DeleteOptions{})
+	err := it.client.CoreV1().Pods(it.namespace).Delete(context.Background(), it.pod.Name, metav1.DeleteOptions{})
 	if err != nil {
 		return err
 	}
@@ -220,13 +248,31 @@ func (it *K8sExecutor) deleteVolume() error {
 		return nil
 	}
 
-	err := it.client.CoreV1().PersistentVolumeClaims(it.Namespace).Delete(context.Background(), it.JobName+"-data", metav1.DeleteOptions{})
+	err := it.client.CoreV1().PersistentVolumeClaims(it.namespace).Delete(context.Background(), it.JobName+"-data", metav1.DeleteOptions{})
 	if err != nil {
 		return err
 	}
 
 	it.volume = nil
 	return nil
+}
+
+// Namespace set namespace for kubernetes objects
+func (it *K8sExecutor) Namespace(n string) *K8sExecutor {
+	it.namespace = n
+	return it
+}
+
+// Image set docker image for pods
+func (it *K8sExecutor) Image(i string) *K8sExecutor {
+	it.image = i
+	return it
+}
+
+// Workspace contains robot project
+func (it *K8sExecutor) Workspace(w string) *K8sExecutor {
+	it.workspacePath = w
+	return it
 }
 
 // Configure the executor
@@ -255,7 +301,7 @@ func (it *K8sExecutor) Configure(any) error {
 }
 
 // Execute the executor
-func (it *K8sExecutor) Execute(workspacePath string) error {
+func (it *K8sExecutor) Execute() error {
 	err := it.createPod()
 	if err != nil {
 		return err
@@ -267,7 +313,7 @@ func (it *K8sExecutor) Execute(workspacePath string) error {
 	}
 
 	log.Infof("copying workspace into pod %s", it.pod.Name)
-	archivePath, err := utils.ArchiveWorkspace(&workspacePath)
+	archivePath, err := utils.ArchiveWorkspace(&it.workspacePath)
 	if err != nil {
 		return err
 	}
