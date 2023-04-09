@@ -1,4 +1,4 @@
-package collector
+package workspace
 
 import (
 	"fmt"
@@ -7,24 +7,19 @@ import (
 	"strings"
 )
 
-type DirectoryNode struct {
-	Path     string
-	Files    []string
-	Children []DirectoryNode
-}
-
-func BuildDirectoryTree(rootPath string) (DirectoryNode, error) {
+// BuildDirectoryTree builds the workspace tree
+func buildDirectoryTree(basePath string) (DirectoryNode, error) {
 	node := DirectoryNode{
-		Path: rootPath,
+		Path: basePath,
 	}
-	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(basePath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if path == rootPath {
+		if path == basePath {
 			return nil
 		}
-		relPath, err := filepath.Rel(rootPath, path)
+		relPath, err := filepath.Rel(basePath, path)
 		if err != nil {
 			return err
 		}
@@ -78,10 +73,10 @@ func BuildDirectoryTree(rootPath string) (DirectoryNode, error) {
 	return node, err
 }
 
-func PrintDirectoryTree(node DirectoryNode, indent string) {
+func printDirectoryTree(node DirectoryNode, indent string) {
 	fmt.Printf("%s%s/\n", indent, node.Path)
 	for _, child := range node.Children {
-		PrintDirectoryTree(child, indent+"  ")
+		printDirectoryTree(child, indent+"  ")
 	}
 
 	for _, file := range node.Files {

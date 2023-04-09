@@ -14,22 +14,4 @@ Visit Bing
 		New Browser		${BROWSER}
 	END
 	New Page			https://www.bing.com
-	Take Screenshot
-
-Visit Google
-	IF	"${BROWSER}" == 'chrome'
-		New Browser		chromium
-	ELSE
-		New Browser		${BROWSER}
-	END
-	New Page			https://www.google.com
-	Take Screenshot
-
-Visit Yahoo
-	IF	"${BROWSER}" == 'chrome'
-		New Browser		chromium
-	ELSE
-		New Browser		${BROWSER}
-	END
-	New Page			https://search.yahoo.com
-	Take Screenshot
+	Take Screenshot     EMBED
