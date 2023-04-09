@@ -14,4 +14,4 @@ Visit Yahoo
 		New Browser		${BROWSER}
 	END
 	New Page			https://search.yahoo.com
-	Take Screenshot     EMBED
+	Take Screenshot

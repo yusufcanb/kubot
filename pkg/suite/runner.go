@@ -6,6 +6,7 @@ import (
 	"kubot/pkg/cluster"
 	"kubot/pkg/workspace"
 	"sync"
+	"time"
 )
 
 type Runner struct {
@@ -13,6 +14,9 @@ type Runner struct {
 
 	merger *Merger
 	image  string
+
+	startedAt   time.Time
+	completedAt time.Time
 }
 
 func (it *Runner) executeSuite(v *Volume, suiteName string) error {
@@ -37,6 +41,8 @@ func (it *Runner) executeSuite(v *Volume, suiteName string) error {
 }
 
 func (it *Runner) Run(w *workspace.Workspace, v *Volume) error {
+	it.startedAt = time.Now()
+
 	var wg sync.WaitGroup
 
 	for _, file := range w.Root().Files {
@@ -52,7 +58,9 @@ func (it *Runner) Run(w *workspace.Workspace, v *Volume) error {
 	}
 	wg.Wait()
 
-	err := it.merger.MergeResults(v, it.image)
+	it.completedAt = time.Now()
+
+	err := it.merger.MergeResults(v, it.image, &it.startedAt, &it.completedAt)
 	if err != nil {
 		return err
 	}

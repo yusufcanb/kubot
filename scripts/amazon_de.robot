@@ -7,11 +7,11 @@ Library			Browser
 ${BROWSER}		%{BROWSER}
 
 *** Test Cases ***
-Visit Bing
+Visit Amazon DE
 	IF	"${BROWSER}" == 'chrome'
 		New Browser		chromium
 	ELSE
 		New Browser		${BROWSER}
 	END
-	New Page			https://www.bing.com
+	New Page			https://amazon.de
 	Take Screenshot
