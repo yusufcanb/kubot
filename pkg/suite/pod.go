@@ -26,8 +26,8 @@ type Pod struct {
 // waitUntilPodHasStarted to ensure the executor's pod in Running state
 func (it *Pod) waitUntilPodHasStarted() error {
 	// define timeout and polling interval
-	timeoutSeconds := 300
-	pollIntervalSeconds := 5
+	timeoutSeconds := 60
+	pollIntervalSeconds := 3
 
 	// create a context with timeout and cancel functions
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSeconds)*time.Second)
@@ -42,6 +42,9 @@ func (it *Pod) waitUntilPodHasStarted() error {
 			pod, err := it.cluster.Client().CoreV1().Pods(it.pod.Namespace).Get(context.Background(), it.pod.Name, metav1.GetOptions{})
 			if err != nil {
 				return fmt.Errorf("error getting pod %s/%s: %v", pod.Namespace, pod.Name, err)
+			}
+			if pod.Status.Phase == corev1.PodFailed {
+				return fmt.Errorf("pod[%s] is failed", pod.Name)
 			}
 			if pod.Status.Phase == corev1.PodRunning {
 				return nil
@@ -121,7 +124,7 @@ func (it *Pod) exec(cmd []string) error {
 
 	if err != nil {
 		fmt.Println(buf.String())
-		return fmt.Errorf("%w Failed executing command %s on %v/%v", err, cmd, it.pod.Namespace, it.pod.Name)
+		return fmt.Errorf("%w - %s on %v/%v", err, cmd, it.pod.Namespace, it.pod.Name)
 	}
 	return nil
 }

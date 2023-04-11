@@ -14,4 +14,4 @@ Visit Bing
 		New Browser		${BROWSER}
 	END
 	New Page			https://www.bing.com
-	Take Screenshot
+	Take Screenshot  EMBED

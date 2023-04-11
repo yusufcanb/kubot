@@ -29,6 +29,8 @@ func (it *Runner) executeSuite(v *Volume, suiteName string) error {
 		"robot", "--log", "NONE", "--report", "NONE", "--outputdir", fmt.Sprintf("/data/output/%s", suiteName), fmt.Sprintf("/data/workspace/scripts/%s", suiteName),
 	})
 	if err != nil {
+		log.Warningf("robot script failed: %s", err)
+		_ = suitePod.destroy()
 		return err
 	}
 
@@ -61,11 +63,11 @@ func (it *Runner) Run(w *workspace.Workspace, v *Volume) error {
 	it.completedAt = time.Now()
 
 	err := it.merger.MergeResults(v, it.image, &it.startedAt, &it.completedAt)
+	defer v.DownloadOutput()
 	if err != nil {
 		return err
 	}
 
-	err = v.DownloadOutput()
 	if err != nil {
 		return err
 	}

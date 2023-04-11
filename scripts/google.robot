@@ -14,5 +14,5 @@ Visit Google
 		New Browser		${BROWSER}
 	END
 	New Page			https://www.google.com
-	Take Screenshot
+	Take Screenshot  EMBED
 

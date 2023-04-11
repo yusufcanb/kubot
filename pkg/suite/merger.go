@@ -1,6 +1,9 @@
 package suite
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type Merger struct {
 }
@@ -19,12 +22,9 @@ func (it Merger) MergeResults(v *Volume, image string, startedAt *time.Time, com
 	}
 
 	err = suitePod.exec(cmd)
+	defer suitePod.destroy()
 	if err != nil {
-		return err
-	}
-
-	err = suitePod.destroy()
-	if err != nil {
+		fmt.Errorf("merger failed: %s", err)
 		return err
 	}
 
