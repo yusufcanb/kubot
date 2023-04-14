@@ -18,7 +18,7 @@ jobs:
 
       - name: Build
         run: |
-          go build -o kubot main.go
+          go build -o kubot kubot.go
           tar czf kubot.tar.gz kubot
 
       - name: Upload Release Asset
