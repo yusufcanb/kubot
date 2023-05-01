@@ -5,9 +5,11 @@ import (
 	"context"
 	"fmt"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/utils/env"
 	"kubot/pkg/cluster"
 	"os"
 	"os/exec"
@@ -26,8 +28,8 @@ type Pod struct {
 // waitUntilPodHasStarted to ensure the executor's pod in Running state
 func (it *Pod) waitUntilPodHasStarted() error {
 	// define timeout and polling interval
-	timeoutSeconds := 60
-	pollIntervalSeconds := 3
+	timeoutSeconds := 5 * 60 // 5 minutes
+	pollIntervalSeconds := 10
 
 	// create a context with timeout and cancel functions
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSeconds)*time.Second)
@@ -126,9 +128,11 @@ func (it *Pod) exec(cmd []string) error {
 		fmt.Println(buf.String())
 		return fmt.Errorf("%w - %s on %v/%v", err, cmd, it.pod.Namespace, it.pod.Name)
 	}
+
 	return nil
 }
 
+// destroy the pod instance
 func (it *Pod) destroy() error {
 	// Delete the Pod with the specified name in the specified namespace
 	err := it.cluster.Client().CoreV1().Pods(it.cluster.DefaultNamespace()).Delete(context.Background(), it.pod.Name, metav1.DeleteOptions{})
@@ -158,6 +162,16 @@ func NewSuitePod(suiteVolume *Volume, image string) (*Pod, error) {
 					{
 						Name:      suiteVolume.volume.Name,
 						MountPath: "/data",
+					},
+				},
+				Resources: corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse(env.GetString("KUBOT_POD_CPU_REQUEST", "250m")),     // 0.25 CPU
+						corev1.ResourceMemory: resource.MustParse(env.GetString("KUBOT_POD_MEMORY_REQUEST", "128Mi")), // 128 MB RAM
+					},
+					Limits: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse(env.GetString("KUBOT_POD_CPU_LIMIT", "250m")),     // 0.25 CPU
+						corev1.ResourceMemory: resource.MustParse(env.GetString("KUBOT_POD_MEMORY_LIMIT", "256Mi")), // 256 MB RAM
 					},
 				},
 			},

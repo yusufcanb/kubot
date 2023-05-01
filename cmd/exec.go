@@ -4,7 +4,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"kubot/pkg/app"
-	"kubot/pkg/executor"
 	"os"
 	"path/filepath"
 )
@@ -13,15 +12,19 @@ var execCmd = &cobra.Command{
 	Use:   "exec",
 	Short: "Execute a job",
 	Run: func(cmd *cobra.Command, args []string) {
-		executor := executor.K8sExecutor{}
-		err := executor.Configure(nil)
-		if err != nil {
-			log.Fatal(err)
+		name, err := cmd.Flags().GetString("name")
+		if err != nil || name == "" {
+			log.Fatalf("Error getting name flag: %s", err)
 		}
 
 		image, err := cmd.Flags().GetString("image")
 		if err != nil || image == "" {
 			log.Fatalf("Error getting image flag: %s", err)
+		}
+
+		batchSize, err := cmd.Flags().GetInt("batchsize")
+		if err != nil || batchSize == 0 {
+			log.Fatalf("Error getting batchsize flag: %s", err)
 		}
 
 		namespace, err := cmd.Flags().GetString("namespace")
@@ -40,10 +43,12 @@ var execCmd = &cobra.Command{
 		}
 
 		k, err := app.New(app.RuntimeArgs{
-			Namespace:     namespace,
-			Image:         image,
-			WorkspacePath: workspace,
-			Selector:      selector,
+			TopLevelSuiteName: name,
+			Namespace:         namespace,
+			Image:             image,
+			WorkspacePath:     workspace,
+			Selector:          selector,
+			BatchSize:         batchSize,
 		})
 
 		if err != nil {
@@ -63,8 +68,10 @@ func init() {
 	}
 
 	execCmd.Flags().StringP("workspace", "w", filepath.Dir(ex), "workspace path")
-	execCmd.Flags().StringP("namespace", "n", "", "kubernetes namespace")
+	execCmd.Flags().StringP("name", "n", "Kubot Results", "workspace path")
+	execCmd.Flags().StringP("namespace", "", "", "kubernetes namespace")
 	execCmd.Flags().StringP("image", "i", "", "docker image for execution")
+	execCmd.Flags().IntP("batchsize", "b", 25, "execution batch size")
 	execCmd.Flags().StringP("selector", "s", "", "script selector. e.g. tasks/*")
 
 	rootCmd.AddCommand(execCmd)

@@ -30,7 +30,7 @@ func (it *Volume) Exists() bool {
 func (it *Volume) Create() error {
 	size := "1Gi"
 	accessModes := []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
-	storageClassName := "azurefile-premium" // fmt.Sprintf("%s-%s", it.volumeName, "storage-class")
+	storageClassName := "azurefile-premium"
 
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{

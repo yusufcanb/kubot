@@ -14,10 +14,13 @@ type App struct {
 
 	suiteVolume *suite.Volume // volume to extract workspace into
 	suiteRunner *suite.Runner
+
+	topLevelSuiteName string
+	batchSize         int
 }
 
 func (it *App) Run() error {
-	err := it.suiteRunner.Run(it.workspace, it.suiteVolume)
+	err := it.suiteRunner.Run(it.workspace, it.suiteVolume, it.batchSize)
 	if err != nil {
 		return err
 	}

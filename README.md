@@ -40,6 +40,15 @@ kubot --workspace . \
       --output [output-directory]
 ```
 
+## Configuration
+
+Here is the configuration parameters you can use;
+
+| Name          | Description          | Default |
+|---------------|----------------------|---------|
+| POD_CPU_LIMIT | CPU limit per pod    | 10      | 
+| POD_MEM_LIMIT | Memory limit per Pod | 128 Mb  |
+
 ## Contributing
 
 To contribute to this project, please fork the repository and submit a pull request. All contributions are welcome!

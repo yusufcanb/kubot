@@ -10,6 +10,9 @@ func New(args RuntimeArgs) (*App, error) {
 	var err error
 	var app = App{}
 
+	app.topLevelSuiteName = args.TopLevelSuiteName
+	app.batchSize = args.BatchSize
+
 	app.cluster, err = cluster.NewCluster("", args.Namespace)
 	if err != nil {
 		return nil, err
@@ -29,7 +32,7 @@ func New(args RuntimeArgs) (*App, error) {
 		return nil, err
 	}
 
-	app.suiteRunner = suite.NewRunner(app.cluster, args.Image)
+	app.suiteRunner = suite.NewRunner(app.cluster, args.Image, app.topLevelSuiteName)
 
 	return &app, nil
 }

@@ -1,8 +1,10 @@
 package app
 
 type RuntimeArgs struct {
-	Namespace     string
-	Image         string
-	Selector      string
-	WorkspacePath string
+	TopLevelSuiteName string
+	Namespace         string
+	Image             string
+	Selector          string
+	WorkspacePath     string
+	BatchSize         int
 }

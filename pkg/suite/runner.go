@@ -3,6 +3,7 @@ package suite
 import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
+	"kubot/pkg/batch"
 	"kubot/pkg/cluster"
 	"kubot/pkg/workspace"
 	"sync"
@@ -28,43 +29,45 @@ func (it *Runner) executeSuite(v *Volume, suiteName string) error {
 	err = suitePod.exec([]string{
 		"robot", "--log", "NONE", "--report", "NONE", "--outputdir", fmt.Sprintf("/data/output/%s", suiteName), fmt.Sprintf("/data/workspace/scripts/%s", suiteName),
 	})
+	defer suitePod.destroy()
 	if err != nil {
-		log.Warningf("robot script failed: %s", err)
-		_ = suitePod.destroy()
-		return err
-	}
-
-	err = suitePod.destroy()
-	if err != nil {
+		log.Errorf("robot script failed: %s", err)
 		return err
 	}
 
 	return nil
 }
 
-func (it *Runner) Run(w *workspace.Workspace, v *Volume) error {
+func (it *Runner) Run(w *workspace.Workspace, v *Volume, batchSize int) error {
+
+	scriptBatch := batch.NewBatch(batchSize, w)
+
 	it.startedAt = time.Now()
 
-	var wg sync.WaitGroup
+	for {
+		items := scriptBatch.Next()
+		if items == nil {
+			break
+		}
+		var wg sync.WaitGroup
 
-	for _, file := range w.Root().Files {
-		wg.Add(1)
-		go func(filename string) {
-			err := it.executeSuite(v, filename)
-
-			if err != nil {
-				log.Warning(err)
-			}
-			defer wg.Done()
-		}(file)
-	}
-	wg.Wait()
+		for _, file := range items {
+			wg.Add(1)
+			go func(filename string) {
+				_ = it.executeSuite(v, filename)
+				defer wg.Done()
+			}(file)
+		} // execute every script in the batch
+		wg.Wait()
+	} // process batches
 
 	it.completedAt = time.Now()
+	time.Sleep(5 * time.Second) // Wait for all the buffers to be completed.
 
 	err := it.merger.MergeResults(v, it.image, &it.startedAt, &it.completedAt)
 	defer v.DownloadOutput()
 	if err != nil {
+		log.Errorf("merging failed: %s", err)
 		return err
 	}
 
@@ -75,10 +78,12 @@ func (it *Runner) Run(w *workspace.Workspace, v *Volume) error {
 	return nil
 }
 
-func NewRunner(c *cluster.Cluster, image string) *Runner {
+func NewRunner(c *cluster.Cluster, image string, topLevelSuiteName string) *Runner {
 	return &Runner{
 		cluster: c,
 		image:   image,
-		merger:  &Merger{},
+		merger: &Merger{
+			topLevelSuiteName: topLevelSuiteName,
+		},
 	}
 }
