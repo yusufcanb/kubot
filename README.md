@@ -32,8 +32,6 @@ kubot exec --workspace=/path/to/scripts \
            --image=docker.io/marketsquare/robotframework-browser:latest
 ```
 
-Here are the environment variables you can configure the advanced Pod spec;
-
 ## Flags
 
 - **--workspace (-w)**: Specifies the path to the workspace containing your robot scripts.
@@ -48,7 +46,7 @@ Here are the environment variables you can configure the advanced Pod spec;
 
 ## Workload Configuration
 
-Here is the configuration parameters you can use;
+Here is the workload configuration parameters you can use;
 
 | Name                     | Description            | Default |
 |--------------------------|------------------------|---------|
