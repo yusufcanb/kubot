@@ -35,7 +35,7 @@ var cfgFile string
 var rootCmd = &cobra.Command{
 	Use:     "kubot",
 	Short:   "Parallelize robot scripts using K8s Job objects",
-	Version: "1.0.0",
+	Version: "0.1.0",
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},
@@ -87,8 +87,5 @@ func initConfig() {
 	if err := viper.ReadInConfig(); err == nil {
 		log.Debug("Using config file:", viper.ConfigFileUsed())
 	}
-
-	log.Debug("Platform: ", viper.GetString("platform_url"))
-	log.Debug("Project: ", viper.GetString("project"))
 
 }

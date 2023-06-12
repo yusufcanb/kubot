@@ -2,6 +2,9 @@ package batch
 
 import "kubot/pkg/workspace"
 
+// Batch struct represents a batch of files to be processed.
+// It contains a size field which represents the size of each batch,
+// and a cursor field which represents the current position in the file list.
 type Batch struct {
 	size   int
 	cursor int
