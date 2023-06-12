@@ -55,7 +55,10 @@ var execCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 
-		k.Run()
+		err = k.Run()
+		if err != nil {
+			log.Fatal(err)
+		}
 
 		defer k.Clean()
 	},
@@ -68,9 +71,9 @@ func init() {
 	}
 
 	execCmd.Flags().StringP("workspace", "w", filepath.Dir(ex), "workspace path")
-	execCmd.Flags().StringP("name", "n", "Kubot Results", "workspace path")
-	execCmd.Flags().StringP("namespace", "", "", "kubernetes namespace")
-	execCmd.Flags().StringP("image", "i", "", "docker image for execution")
+	execCmd.Flags().StringP("name", "n", "Kubot Results", "top level suite name for logs and reports")
+	execCmd.Flags().StringP("namespace", "", "", "kubernetes namespace to create workloads in it")
+	execCmd.Flags().StringP("image", "i", "", "docker image for execution for pods and jobs")
 	execCmd.Flags().IntP("batchsize", "b", 25, "execution batch size")
 	execCmd.Flags().StringP("selector", "s", "", "script selector. e.g. tasks/*")
 
