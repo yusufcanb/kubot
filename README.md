@@ -15,7 +15,7 @@ Kubernetes.
 
 ## Installation
 
-To install Kubot, you need to have Go programming language and Docker installed on your machine. Then, run the following
+To install Kubot, you need to have Go programming language. Then, run the following
 command:
 
 ```bash
