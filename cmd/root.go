@@ -21,6 +21,7 @@
 package cmd
 
 import (
+	"kubot/pkg/app"
 	"os"
 	"path"
 
@@ -35,7 +36,7 @@ var cfgFile string
 var rootCmd = &cobra.Command{
 	Use:     "kubot",
 	Short:   "Parallelize robot scripts using K8s Job objects",
-	Version: "0.1.0",
+	Version: app.VERSION,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},
