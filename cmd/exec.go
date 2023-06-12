@@ -3,7 +3,7 @@ package cmd
 import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"kubot/pkg/app"
+	"github.com/yusufcanb/kubot/pkg/app"
 	"os"
 	"path/filepath"
 )

@@ -2,9 +2,9 @@ package app
 
 import (
 	log "github.com/sirupsen/logrus"
-	"kubot/pkg/cluster"
-	"kubot/pkg/suite"
-	"kubot/pkg/workspace"
+	"github.com/yusufcanb/kubot/pkg/cluster"
+	"github.com/yusufcanb/kubot/pkg/suite"
+	"github.com/yusufcanb/kubot/pkg/workspace"
 )
 
 type App struct {

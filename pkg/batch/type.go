@@ -1,6 +1,6 @@
 package batch
 
-import "kubot/pkg/workspace"
+import "github.com/yusufcanb/kubot/pkg/workspace"
 
 // Batch struct represents a batch of files to be processed.
 // It contains a size field which represents the size of each batch,

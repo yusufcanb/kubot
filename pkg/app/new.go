@@ -1,9 +1,9 @@
 package app
 
 import (
-	"kubot/pkg/cluster"
-	"kubot/pkg/suite"
-	"kubot/pkg/workspace"
+	"github.com/yusufcanb/kubot/pkg/cluster"
+	"github.com/yusufcanb/kubot/pkg/suite"
+	"github.com/yusufcanb/kubot/pkg/workspace"
 )
 
 func New(args RuntimeArgs) (*App, error) {

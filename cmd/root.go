@@ -21,7 +21,7 @@
 package cmd
 
 import (
-	"kubot/pkg/app"
+	"github.com/yusufcanb/kubot/pkg/app"
 	"os"
 	"path"
 

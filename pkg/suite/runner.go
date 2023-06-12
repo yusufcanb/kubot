@@ -3,9 +3,9 @@ package suite
 import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
-	"kubot/pkg/batch"
-	"kubot/pkg/cluster"
-	"kubot/pkg/workspace"
+	"github.com/yusufcanb/kubot/pkg/batch"
+	"github.com/yusufcanb/kubot/pkg/cluster"
+	"github.com/yusufcanb/kubot/pkg/workspace"
 	"sync"
 	"time"
 )

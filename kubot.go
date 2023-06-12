@@ -1,6 +1,6 @@
 package main
 
-import "kubot/cmd"
+import "github.com/yusufcanb/kubot/cmd"
 
 func main() {
 	cmd.Execute()
