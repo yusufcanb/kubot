@@ -22,14 +22,14 @@ jobs:
           GOOS: linux
           GOARCH: amd64
         run: |
-          go build -o kubot-${{  github.ref_name }}-linux kubot.go
+          go build -o kubot-${{  github.ref_name }}-linux-amd64 kubot.go
 
       - name: Build MacOS
         env:
           GOOS: darwin
           GOARCH: amd64
         run: |
-          go build -o kubot-${{  github.ref_name }} kubot.go
+          go build -o kubot-${{  github.ref_name }}-darwin-amd64 kubot.go
 
       - name: Build Windows
         env:
@@ -38,11 +38,10 @@ jobs:
         run: |
           go build -o kubot-${{  github.ref_name }}-win-amd64.exe kubot.go
 
-
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          body_path: ${{ github.workspace }}-CHANGELOG.txt
           # note you'll typically need to create a personal access token
           # with permissions to create releases in the other repo
           files: kubot-*
+          token: ${{ secrets.GITHUB_TOKEN }}
