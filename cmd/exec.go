@@ -39,7 +39,7 @@ var execCmd = &cobra.Command{
 
 		selector, err := cmd.Flags().GetString("selector")
 		if err != nil || selector == "" {
-			log.Fatalf("Error getting selector flag: %s", err)
+			selector = workspace
 		}
 
 		k, err := app.New(app.RuntimeArgs{

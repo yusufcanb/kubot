@@ -27,6 +27,7 @@ func New(args RuntimeArgs) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	err = app.suiteVolume.InitDirectories(app.workspace)
 	if err != nil {
 		return nil, err
