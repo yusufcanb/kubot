@@ -61,9 +61,3 @@ Contributions to Kubot are welcome! If you encounter any issues or have suggesti
 issue or a pull request to the GitHub repository.
 
 Before contributing, please familiarize yourself with the general contribution guidelines.
-
-## Acknowledgments
-
-Kubot was inspired by the need for efficient execution of Robot Framework scripts in parallel over Kubernetes workloads.
-I would like to thank the open-source community for their valuable contributions and the Robot Framework project for
-providing a powerful automation framework.
